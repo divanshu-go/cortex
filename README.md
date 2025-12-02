@@ -1,476 +1,157 @@
 # Cortex Linux
 
-> **The AI-Native Operating System** - Linux that understands you. No documentation required.
-
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
-[![Status](https://img.shields.io/badge/Status-Alpha-orange.svg)]()
-[![Discord](https://img.shields.io/discord/1234567890?color=7289da&label=Discord)](https://discord.gg/uCqHvxjU83)
+**Linux automation that actually works.** Tell it what you want in plain English.
 
 ```bash
 $ cortex install oracle-23-ai --optimize-gpu
-  Analyzing system: NVIDIA RTX 4090 detected
-  Installing CUDA 12.3 + dependencies
-  Configuring Oracle for GPU acceleration
-  Running validation tests
- Oracle 23 AI ready at localhost:1521 (4m 23s)
+
+Analyzing system... NVIDIA RTX 4090 detected
+Planning: CUDA 12.3 → cuDNN → Oracle 23 AI
+Installing 47 packages (this usually takes mass googling)
+Configuring for GPU acceleration
+Running validation...
+
+Done. Oracle 23 AI ready at localhost:1521
+Total time: 4m 23s (vs. your afternoon)
 ```
-
----
-
-## Table of Contents
-
-- [The Problem](#the-problem)
-- [The Solution](#the-solution)
-- [Features](#features)
-- [Quick Start](#quick-start)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Architecture](#architecture)
-- [Development](#development)
-- [Contributing](#contributing)
-- [Roadmap](#roadmap)
-- [FAQ](#faq)
-- [Community](#community)
-- [License](#license)
-
----
 
 ## The Problem
 
-Installing complex software on Linux is broken:
+We've all been there:
 
--  **47 Stack Overflow tabs** to install CUDA drivers
--  **Dependency hell** that wastes days
--  **Configuration files** written in ancient runes
--  **"Works on my machine"** syndrome
+- **12 browser tabs** of conflicting Stack Overflow answers
+- **Dependency hell** where installing X breaks Y which needs Z
+- **Config file archaeology** - who wrote this? what does `vm.swappiness=60` even do?
+- **4 hours later** you still don't have CUDA working
 
-**Developers spend 30% of their time fighting the OS instead of building.**
+I built Cortex because I was tired of wasting time on package management instead of actual work.
 
-## The Solution
+## What It Does
 
-Cortex Linux embeds AI at the operating system level. Tell it what you need in plain English - it handles everything:
+Cortex wraps `apt` with an LLM that:
 
-| Feature | Description |
-|---------|-------------|
-| **Natural Language Commands** | System understands intent, not syntax |
-| **Hardware-Aware Optimization** | Automatically configures for your GPU/CPU |
-| **Self-Healing Configuration** | Fixes broken dependencies automatically |
-| **Enterprise-Grade Security** | AI actions are sandboxed and validated |
-| **Installation History** | Track and rollback any installation |
+1. **Understands what you mean** - "install a machine learning stack" → figures out PyTorch, TensorFlow, CUDA, cuDNN, Jupyter, etc.
+2. **Detects your hardware** - Sees your GPU/CPU and configures appropriately
+3. **Handles dependencies** - Resolves conflicts before they happen
+4. **Rolls back on failure** - Something breaks? Undo with one command
+5. **Runs in a sandbox** - AI-generated commands execute in Firejail isolation
 
----
+It's not magic. It's just automating what a senior sysadmin would do, but faster.
 
-## Features
+## Current Status
 
-### Core Capabilities
+**Working (merged to main):**
+- LLM integration (Claude API via LangChain)
+- Hardware detection (GPU, CPU, memory)
+- Sandboxed execution (Firejail + AppArmor)
+- Package manager wrapper
+- Installation rollback
+- Context memory (learns your preferences)
 
-- **Natural Language Parsing** - "Install Python for machine learning" just works
-- **Multi-Provider LLM Support** - Claude (Anthropic) and OpenAI GPT-4
-- **Intelligent Package Management** - Wraps apt/yum/dnf with semantic understanding
-- **Hardware Detection** - Automatic GPU, CPU, RAM, storage profiling
-- **Sandboxed Execution** - Firejail-based isolation for all commands
-- **Installation Rollback** - Undo any installation with one command
-- **Error Analysis** - AI-powered error diagnosis and fix suggestions
+**In progress:**
+- Dependency resolution improvements
+- Better error messages
+- Multi-step orchestration
+- Web dashboard (maybe)
 
-### Supported Software (32+ Categories)
+This is early-stage software. Expect rough edges.
 
-| Category | Examples |
-|----------|----------|
-| Languages | Python, Node.js, Go, Rust |
-| Databases | PostgreSQL, MySQL, MongoDB, Redis |
-| Web Servers | Nginx, Apache |
-| Containers | Docker, Kubernetes |
-| DevOps | Terraform, Ansible |
-| ML/AI | CUDA, TensorFlow, PyTorch |
+## Tech Stack
 
----
+- **Base:** Ubuntu 24.04 LTS
+- **Language:** Python 3.11+ (yes, I know - "Python for a package manager?" - it's a prototype, Rust rewrite is on the roadmap)
+- **AI:** LangChain + Claude API
+- **Security:** Firejail sandboxing, AppArmor policies
+- **Storage:** SQLite for history and context
 
-## Quick Start
+## Safety
 
-```bash
-# Install cortex
-pip install cortex-linux
+"But what if the AI hallucinates `rm -rf /`?"
 
-# Set your API key (choose one)
-export ANTHROPIC_API_KEY="your-key-here"
-# or
-export OPENAI_API_KEY="your-key-here"
+Fair concern. Here's how we handle it:
 
-# Install software with natural language
-cortex install docker
-cortex install "python for data science"
-cortex install "web development environment"
+1. **Sandbox everything** - Commands run in Firejail isolation
+2. **Whitelist dangerous operations** - No `rm -rf`, no `dd`, no `mkfs` without explicit confirmation
+3. **Dry-run by default** - Shows you what it plans to do before doing it
+4. **Rollback built-in** - Every installation is reversible
+5. **Human confirmation** - Destructive operations require typing "yes I'm sure"
 
-# Execute the installation
-cortex install docker --execute
-
-# Preview without executing
-cortex install nginx --dry-run
-```
-
----
-
-## Installation
-
-### Prerequisites
-
-| Requirement | Version | Notes |
-|-------------|---------|-------|
-| **OS** | Ubuntu 24.04 LTS | Other Debian-based coming soon |
-| **Python** | 3.10+ | Required |
-| **Firejail** | Latest | Recommended for sandboxing |
-| **API Key** | - | Anthropic or OpenAI |
-
-### Step-by-Step Installation
-
-```bash
-# 1. Install system dependencies
-sudo apt update
-sudo apt install -y python3 python3-pip python3-venv firejail
-
-# 2. Create virtual environment (recommended)
-python3 -m venv ~/.cortex-venv
-source ~/.cortex-venv/bin/activate
-
-# 3. Install Cortex
-pip install cortex-linux
-
-# 4. Configure API key
-echo 'export ANTHROPIC_API_KEY="your-key"' >> ~/.bashrc
-source ~/.bashrc
-
-# 5. Verify installation
-cortex --help
-```
-
-### From Source
-
-```bash
-git clone https://github.com/cortexlinux/cortex.git
-cd cortex
-pip install -e .
-```
-
----
-
-## Usage
-
-### Basic Commands
-
-```bash
-# Install software
-cortex install <software>           # Show commands only
-cortex install <software> --execute # Execute installation
-cortex install <software> --dry-run # Preview mode
-
-# Installation history
-cortex history                      # List recent installations
-cortex history show <id>            # Show installation details
-
-# Rollback
-cortex rollback <id>                # Undo an installation
-cortex rollback <id> --dry-run      # Preview rollback
-```
-
-### Examples
-
-```bash
-# Simple installations
-cortex install docker --execute
-cortex install postgresql --execute
-cortex install nginx --execute
-
-# Natural language requests
-cortex install "python with machine learning libraries" --execute
-cortex install "web development stack with nodejs and npm" --execute
-cortex install "database tools for postgresql" --execute
-
-# Complex requests
-cortex install "cuda drivers for nvidia gpu" --execute
-cortex install "complete devops toolchain" --execute
-```
-
-### Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `ANTHROPIC_API_KEY` | Anthropic Claude API key | One of these |
-| `OPENAI_API_KEY` | OpenAI GPT-4 API key | required |
-| `MOONSHOT_API_KEY` | Kimi K2 API key | Optional |
-| `CORTEX_LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING) | No |
-| `CORTEX_DATA_DIR` | Data directory path | No |
-
----
-
-## Configuration
-
-### Configuration File
-
-Create `~/.config/cortex/config.yaml`:
-
-```yaml
-# LLM Provider Settings
-llm:
-  default_provider: claude  # claude, openai, kimi
-  temperature: 0.3
-  max_tokens: 1000
-
-# Security Settings
-security:
-  enable_sandbox: true
-  require_confirmation: true
-  allowed_directories:
-    - /tmp
-    - ~/.local
-
-# Logging
-logging:
-  level: INFO
-  file: ~/.local/share/cortex/cortex.log
-```
-
----
-
-## Architecture
-
-```
-                    User Input
-
-               Natural Language
-
-              Cortex CLI
-
-          +--------+--------+
-          |                 |
-     LLM Router       Hardware
-          |           Profiler
-          |
-  +-------+-------+
-  |       |       |
-Claude  GPT-4  Kimi K2
-          |
-    Command Generator
-          |
-   Security Validator
-          |
-   Sandbox Executor
-          |
-  +-------+-------+
-  |               |
-apt/yum/dnf   Verifier
-                  |
-           Installation
-             History
-```
-
-### Key Components
-
-| Component | File | Purpose |
-|-----------|------|---------|
-| CLI | `cortex/cli.py` | Command-line interface |
-| Coordinator | `cortex/coordinator.py` | Installation orchestration |
-| LLM Interpreter | `LLM/interpreter.py` | Natural language to commands |
-| Package Manager | `cortex/packages.py` | Package manager abstraction |
-| Sandbox | `src/sandbox_executor.py` | Secure command execution |
-| Hardware Profiler | `src/hwprofiler.py` | System hardware detection |
-| History | `installation_history.py` | Installation tracking |
-| Error Parser | `error_parser.py` | Error analysis and fixes |
-
----
-
-## Development
-
-### Setup Development Environment
-
-```bash
-# Clone repository
-git clone https://github.com/cortexlinux/cortex.git
-cd cortex
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-
-# Install in development mode
-pip install -e .
-
-# Run tests
-pytest test/ -v
-
-# Run with coverage
-pytest test/ --cov=cortex --cov-report=html
-```
-
-### Code Style
-
-```bash
-# Format code
-black cortex/
-
-# Lint
-pylint cortex/
-
-# Type checking
-mypy cortex/
-```
-
-### Project Structure
-
-```
-cortex/
- cortex/              # Core Python package
-    __init__.py
-    cli.py            # CLI entry point
-    coordinator.py    # Installation coordinator
-    packages.py       # Package manager wrapper
- LLM/                 # LLM integration
-    interpreter.py    # Command interpreter
-    requirements.txt
- src/                 # Additional modules
-    sandbox_executor.py
-    hwprofiler.py
-    progress_tracker.py
- test/                # Unit tests
- docs/                # Documentation
- examples/            # Usage examples
- .github/             # CI/CD workflows
- requirements.txt     # Dependencies
- setup.py             # Package config
-```
-
----
+We're paranoid about this. The AI is a suggestion engine, not root.
 
 ## Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We pay bounties for merged PRs:
 
-### Quick Contribution Guide
+| Type | Amount |
+|------|--------|
+| Bug fixes | $25-50 |
+| Features | $50-200 |
+| Major features | $200-500 |
 
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
+Payment via Bitcoin, USDC, PayPal, or Venmo. International contributors welcome.
 
-### Bounty Program
+Check the [issues](https://github.com/cortexlinux/cortex/issues) for bounty labels.
 
-Cash bounties on merge:
+### What We Need
 
-| Tier | Amount | Examples |
-|------|--------|----------|
-| Critical | $150-200 | Security fixes, core features |
-| Standard | $75-150 | New features, integrations |
-| Testing | $25-75 | Tests, documentation |
+- **Linux developers** who know apt/dpkg internals
+- **Python devs** for the core logic
+- **Security folks** to poke holes in our sandbox
+- **Technical writers** for documentation
+- **Testers** to break things
 
-**Payment methods:** Bitcoin, USDC, PayPal
+## Running It
 
-See [Bounties.md](Bounties.md) for available bounties.
+```bash
+# Clone
+git clone https://github.com/cortexlinux/cortex.git
+cd cortex
 
----
+# Install dependencies
+pip install -r requirements.txt
 
-## Roadmap
+# Set your Claude API key
+export ANTHROPIC_API_KEY="your-key"
 
-### Current Status: Alpha (Phase 1)
+# Run
+python -m cortex install "nginx with ssl"
+```
 
--  LLM integration layer
--  Safe command execution sandbox
--  Hardware detection
--  Installation history & rollback
--  Error parsing & suggestions
--  Multi-provider LLM support
-
-### Coming Soon (Phase 2)
-
--  Advanced dependency resolution
--  Configuration file generation
--  Multi-step installation orchestration
--  Plugin architecture
-
-### Future (Phase 3)
-
--  Enterprise deployment tools
--  Security hardening & audit logging
--  Role-based access control
--  Air-gapped deployment support
-
-See [ROADMAP.md](ROADMAP.md) for detailed plans.
-
----
+Requires Ubuntu 22.04+ or Debian 12+. Other distros eventually.
 
 ## FAQ
 
-<details>
-<summary><strong>What operating systems are supported?</strong></summary>
+**Q: Why Python for a package manager?**
+A: It's a prototype. If this takes off, core components get rewritten in Rust. Python lets us move fast and prove the concept.
 
-Currently Ubuntu 24.04 LTS. Other Debian-based distributions coming soon.
-</details>
+**Q: Is this just a wrapper around apt?**
+A: Yes, for now. The goal is deeper integration - custom package formats, rollback at filesystem level, eventually kernel-level optimizations. You have to start somewhere.
 
-<details>
-<summary><strong>Is it free?</strong></summary>
+**Q: Why Claude and not GPT-4/Llama/etc?**
+A: Claude has the best instruction-following for this use case. We'll add model options eventually.
 
-Yes! Community edition is free and open source (Apache 2.0). Enterprise subscriptions will be available for advanced features.
-</details>
+**Q: Can I use this in production?**
+A: Not yet. This is alpha software. Test it on VMs first.
 
-<details>
-<summary><strong>Is it secure?</strong></summary>
+## Roadmap
 
-Yes. All commands are validated and executed in a Firejail sandbox with AppArmor policies. AI-generated commands are checked against a security allowlist.
-</details>
+**Phase 1 (now):** Get the basics working. Natural language → apt commands.
 
-<details>
-<summary><strong>Can I use my own LLM?</strong></summary>
+**Phase 2 (Q1 2025):** Polish, error handling, config file generation.
 
-Currently supports Claude (Anthropic) and OpenAI. Local LLM support is planned for future releases.
-</details>
+**Phase 3 (2025):** Deeper integration - package caching, custom repos, multi-distro support.
 
-<details>
-<summary><strong>What if something goes wrong?</strong></summary>
-
-Every installation is tracked and can be rolled back with `cortex rollback <id>`.
-</details>
-
-See [FAQ.md](FAQ.md) for more questions.
-
----
+**Phase 4 (eventually):** Kernel-level stuff - we have some ideas around native LLM support in the Linux kernel. Wild, but interesting.
 
 ## Community
 
-### Get Help
-
--  **Discord:** [Join our server](https://discord.gg/uCqHvxjU83)
--  **GitHub Issues:** [Report bugs](https://github.com/cortexlinux/cortex/issues)
--  **Discussions:** [Ask questions](https://github.com/cortexlinux/cortex/discussions)
-
-### Stay Updated
-
--  Star this repository
--  Follow [@cortexlinux](https://twitter.com/cortexlinux) on Twitter
--  Subscribe to our [newsletter](https://cortexlinux.com)
-
----
+- **Discord:** [discord.gg/uCqHvxjU83](https://discord.gg/uCqHvxjU83)
+- **Email:** mike@cortexlinux.com
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Apache 2.0 - Use it, fork it, sell it, whatever. Just don't blame us if it breaks.
 
 ---
 
-## Acknowledgments
-
-- Built with [Claude](https://anthropic.com) and [OpenAI](https://openai.com)
-- Sandbox powered by [Firejail](https://firejail.wordpress.com/)
-- Inspired by the pain of every developer who spent hours on Stack Overflow
-
----
-
-<p align="center">
-  <strong>Star this repo to follow development</strong>
-  <br><br>
-  Built with  by the Cortex Linux community
-</p>
+*Built by [Mike Morgan](https://github.com/mikejmorgan-ai) and contributors. We're hiring - if you're good at Linux internals and want to work on something different, reach out.*
