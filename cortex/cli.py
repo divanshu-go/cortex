@@ -2,15 +2,20 @@ import sys
 import os
 import argparse
 import time
+import logging
 from typing import List, Optional
 import subprocess
 from datetime import datetime
+
+# Suppress noisy log messages in normal operation
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from LLM.interpreter import CommandInterpreter
 from cortex.coordinator import InstallationCoordinator, StepStatus
-from installation_history import (
+from cortex.installation_history import (
     InstallationHistory,
     InstallationType,
     InstallationStatus
