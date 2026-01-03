@@ -23,6 +23,11 @@ from typing import Optional
 
 from cortex.branding import console, cx_print
 
+# Constants
+CORTEX_DIR = ".cortex"
+CORTEX_ENV_FILE = ".env"
+CORTEX_CACHE_FILE = ".api_key_cache"
+
 # Supported API key prefixes
 KEY_PATTERNS = {
     "sk-ant-": "anthropic",
@@ -50,8 +55,8 @@ class APIKeyDetector:
             cache_dir: Directory for caching key location info.
                       Defaults to ~/.cortex
         """
-        self.cache_dir = cache_dir or (Path.home() / ".cortex")
-        self.cache_file = self.cache_dir / ".api_key_cache"
+        self.cache_dir = cache_dir or (Path.home() / CORTEX_DIR)
+        self.cache_file = self.cache_dir / CORTEX_CACHE_FILE
 
     def detect(self) -> tuple[bool, str | None, str | None, str | None]:
         """
@@ -65,45 +70,90 @@ class APIKeyDetector:
             - source: Where the key was found (or None)
         """
         # Check cached location first
-        cached = self._get_cached_key()
-        if cached:
-            provider, source = cached
-            env_var = self._get_env_var_name(provider)
-
-            if source == "environment":
-                value = os.environ.get(env_var)
-                if value:
-                    return (True, value, provider, source)
-            else:
-                key = self._extract_key_from_file(Path(source), env_var)
-                if key:
-                    os.environ[env_var] = key
-                    return (True, key, provider, source)
+        result = self._check_cached_key()
+        if result:
+            return result
 
         # Check in priority order
+        result = self._check_all_locations()
+        return result or (False, None, None, None)
+
+    def _check_cached_key(self) -> tuple[bool, str | None, str | None, str | None] | None:
+        """Check if we have a cached key that still works."""
+        cached = self._get_cached_key()
+        if not cached:
+            return None
+
+        provider, source = cached
+        return self._validate_cached_key(provider, source)
+
+    def _validate_cached_key(
+        self, provider: str, source: str
+    ) -> tuple[bool, str | None, str | None, str | None] | None:
+        """Validate that a cached key still works."""
+        env_var = self._get_env_var_name(provider)
+
+        if source == "environment":
+            value = os.environ.get(env_var)
+            return (True, value, provider, source) if value else None
+        else:
+            key = self._extract_key_from_file(Path(source), env_var)
+            if key:
+                os.environ[env_var] = key
+                return (True, key, provider, source)
+            return None
+
+    def _check_all_locations(self) -> tuple[bool, str | None, str | None, str | None] | None:
+        """Check all locations in priority order for API keys."""
         locations = self._get_check_locations()
 
         for source, env_vars in locations:
-            for env_var in env_vars:
-                # Check environment first
-                if source == "environment":
-                    value = os.environ.get(env_var)
-                    if value:
-                        provider = self._get_provider_from_var(env_var)
-                        self._cache_key_location(value, provider, source)
-                        return (True, value, provider, source)
+            result = self._check_location(source, env_vars)
+            if result:
+                return result
 
-                # Check files
-                elif isinstance(source, Path):
-                    key = self._extract_key_from_file(source, env_var)
-                    if key:
-                        provider = self._get_provider_from_var(env_var)
-                        self._cache_key_location(key, provider, str(source))
-                        # Set in environment for this session
-                        os.environ[env_var] = key
-                        return (True, key, provider, str(source))
+        return None
 
-        return (False, None, None, None)
+    def _check_location(
+        self, source: str | Path, env_vars: list[str]
+    ) -> tuple[bool, str | None, str | None, str | None] | None:
+        """Check a specific location for API keys."""
+        for env_var in env_vars:
+            if source == "environment":
+                result = self._check_environment_variable(env_var)
+            elif isinstance(source, Path):
+                result = self._check_file_location(source, env_var)
+            else:
+                continue
+
+            if result:
+                return result
+
+        return None
+
+    def _check_environment_variable(
+        self, env_var: str
+    ) -> tuple[bool, str | None, str | None, str | None] | None:
+        """Check if an environment variable contains a valid API key."""
+        value = os.environ.get(env_var)
+        if value:
+            provider = self._get_provider_from_var(env_var)
+            self._cache_key_location(value, provider, "environment")
+            return (True, value, provider, "environment")
+        return None
+
+    def _check_file_location(
+        self, source: Path, env_var: str
+    ) -> tuple[bool, str | None, str | None, str | None] | None:
+        """Check if a file contains a valid API key."""
+        key = self._extract_key_from_file(source, env_var)
+        if key:
+            provider = self._get_provider_from_var(env_var)
+            self._cache_key_location(key, provider, str(source))
+            # Set in environment for this session
+            os.environ[env_var] = key
+            return (True, key, provider, str(source))
+        return None
 
     def prompt_for_key(self) -> tuple[bool, str | None, str | None]:
         """
@@ -112,6 +162,22 @@ class APIKeyDetector:
         Returns:
             Tuple of (entered, key, provider)
         """
+        provider = self._get_provider_choice()
+        if not provider:
+            return (False, None, None)
+
+        if provider == "ollama":
+            return (True, "ollama-local", "ollama")
+
+        key = self._get_and_validate_key(provider)
+        if not key:
+            return (False, None, None)
+
+        self._ask_to_save_key(key, provider)
+        return (True, key, provider)
+
+    def _get_provider_choice(self) -> str | None:
+        """Get user's provider choice."""
         cx_print("No API key found. Select a provider:", "warning")
         console.print("  [bold]1.[/bold] Claude (Anthropic)")
         console.print("  [bold]2.[/bold] OpenAI")
@@ -120,18 +186,19 @@ class APIKeyDetector:
         try:
             choice = input("\nEnter choice [1/2/3]: ").strip()
         except (EOFError, KeyboardInterrupt):
-            return (False, None, None)
+            return None
 
         if choice == "3":
             cx_print("✓ Using Ollama (local mode)", "success")
-            return (True, "ollama-local", "ollama")
+            return "ollama"
 
         provider = "anthropic" if choice == "1" else "openai" if choice == "2" else None
         if not provider:
             cx_print("Invalid choice.", "warning")
-            return (False, None, None)
+        return provider
 
-        # Prompt for key
+    def _get_and_validate_key(self, provider: str) -> str | None:
+        """Get and validate API key from user."""
         provider_name = "Anthropic" if provider == "anthropic" else "OpenAI"
         prefix_hint = "sk-ant-" if provider == "anthropic" else "sk-"
         cx_print(f"Enter your {provider_name} API key (starts with '{prefix_hint}'):", "info")
@@ -139,20 +206,23 @@ class APIKeyDetector:
         try:
             key = input("> ").strip()
         except (EOFError, KeyboardInterrupt):
-            return (False, None, None)
+            return None
 
         if not key:
             cx_print("Cancelled.", "info")
-            return (False, None, None)
+            return None
 
         # Validate format
         detected = self._get_provider_from_key(key)
         if detected != provider:
             cx_print(f"⚠️  Key doesn't match expected {provider_name} format", "warning")
-            return (False, None, None)
+            return None
 
-        # Ask to save
-        print("\nSave to ~/.cortex/.env? [Y/n] ", end="")
+        return key
+
+    def _ask_to_save_key(self, key: str, provider: str) -> None:
+        """Ask user if they want to save the key."""
+        print(f"\nSave to ~/{CORTEX_DIR}/{CORTEX_ENV_FILE}? [Y/n] ", end="")
         try:
             response = input().strip().lower()
         except (EOFError, KeyboardInterrupt):
@@ -161,11 +231,9 @@ class APIKeyDetector:
         if response != "n":
             self._save_key_to_env(key, provider)
             # Update cache to point to the default location
-            target_env = Path.home() / ".cortex" / ".env"
+            target_env = Path.home() / CORTEX_DIR / CORTEX_ENV_FILE
             self._cache_key_location(key, provider, str(target_env))
-            cx_print("✓ Key saved to ~/.cortex/.env", "success")
-
-        return (True, key, provider)
+            cx_print(f"✓ Key saved to ~/{CORTEX_DIR}/{CORTEX_ENV_FILE}", "success")
 
     def _maybe_save_found_key(self, key: str, provider: str, source: str) -> None:
         """Offer to save a detected key to ~/.cortex/.env."""
@@ -173,18 +241,18 @@ class APIKeyDetector:
         if source == "environment":
             return
 
-        target_env = Path.home() / ".cortex" / ".env"
+        target_env = Path.home() / CORTEX_DIR / CORTEX_ENV_FILE
         try:
             source_path = Path(source).expanduser()
             if source_path.exists() and source_path.resolve() == target_env.resolve():
                 return
-        except Exception:
+        except (OSError, ValueError):
             # If source is not a valid path, continue prompting for file-based sources
             pass
 
         cx_print("API key found at following location", "info")
         console.print(f"{source}")
-        print("\nSave to ~/.cortex/.env? [Y/n] ", end="")
+        print("\nSave to ~/{CORTEX_DIR}/{CORTEX_ENV_FILE}? [Y/n] ", end="")
 
         try:
             response = input().strip().lower()
@@ -206,7 +274,7 @@ class APIKeyDetector:
         """
         return [
             ("environment", ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]),
-            (Path.home() / ".cortex" / ".env", ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]),
+            (Path.home() / CORTEX_DIR / CORTEX_ENV_FILE, ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]),
             (Path.home() / ".config" / "anthropic" / "credentials.json", ["ANTHROPIC_API_KEY"]),
             (Path.home() / ".config" / "openai" / "credentials.json", ["OPENAI_API_KEY"]),
             (Path.cwd() / ".env", ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]),
@@ -386,7 +454,7 @@ class APIKeyDetector:
             provider: Provider name
         """
         try:
-            env_file = Path.home() / ".cortex" / ".env"
+            env_file = Path.home() / CORTEX_DIR / CORTEX_ENV_FILE
             var_name = self._get_env_var_name(provider)
             existing = self._read_env_file(env_file)
             updated = self._update_or_append_key(existing, var_name, key)
@@ -422,7 +490,7 @@ def setup_api_key() -> tuple[bool, str | None, str | None]:
     if found:
         # Only show "Found" message for non-default locations
         # ~/.cortex/.env is our canonical location, so no need to announce it
-        default_location = str(Path.home() / ".cortex" / ".env")
+        default_location = str(Path.home() / CORTEX_DIR / CORTEX_ENV_FILE)
         if source != default_location:
             cx_print(f"🔑 Found {provider.upper()} API key in {source}", "success")
         detector._maybe_save_found_key(key, provider, source)

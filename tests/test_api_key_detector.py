@@ -135,7 +135,7 @@ class TestAPIKeyDetector:
                 with patch("pathlib.Path.home", return_value=Path(tmpdir)):
                     detector = APIKeyDetector(cache_dir=Path(tmpdir) / ".cortex")
                     with patch.dict(os.environ, {}, clear=True):
-                        found, key, provider, source = detector.detect()
+                        found, key, provider, _ = detector.detect()
                         assert found is True
                         assert key == "sk-ant-cwd123"
                         assert provider == "anthropic"
@@ -159,7 +159,7 @@ class TestAPIKeyDetector:
         """Test when no key is found."""
         with patch.dict(os.environ, {}, clear=True):
             with patch("pathlib.Path.home", return_value=Path("/nonexistent")):
-                found, key, provider, source = detector.detect()
+                found, key, provider, _ = detector.detect()
                 assert found is False
                 assert key is None
                 assert provider is None
