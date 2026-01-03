@@ -261,7 +261,7 @@ class APIKeyDetector:
 
         cx_print("API key found at following location", "info")
         console.print(f"{source}")
-        print("\nSave to ~/{CORTEX_DIR}/{CORTEX_ENV_FILE}? [Y/n] ", end="")
+        print(f"\nSave to ~/{CORTEX_DIR}/{CORTEX_ENV_FILE}? [Y/n] ", end="")
 
         try:
             response = input().strip().lower()
