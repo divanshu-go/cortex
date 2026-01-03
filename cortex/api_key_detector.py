@@ -192,7 +192,13 @@ class APIKeyDetector:
             cx_print("✓ Using Ollama (local mode)", "success")
             return "ollama"
 
-        provider = "anthropic" if choice == "1" else "openai" if choice == "2" else None
+        if choice == "1":
+            provider = "anthropic"
+        elif choice == "2":
+            provider = "openai"
+        else:
+            provider = None
+
         if not provider:
             cx_print("Invalid choice.", "warning")
         return provider

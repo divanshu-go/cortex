@@ -323,7 +323,7 @@ class TestConvenienceFunctions:
                 or setattr(self, "cache_file", Path(tmpdir) / ".api_key_cache"),
             ):
                 with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-test"}, clear=True):
-                    found, key, provider, source = auto_detect_api_key()
+                    found, key, provider, _ = auto_detect_api_key()
                     assert found is True
                     assert key == "sk-ant-test"
                     assert provider == "anthropic"
